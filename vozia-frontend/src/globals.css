@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background: #0A0F1C;
+  color: white;
+  overflow: hidden;
+}

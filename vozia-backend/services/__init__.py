@@ -1,3 +1,0 @@
-"""
-Servicios de VozIA
-"""

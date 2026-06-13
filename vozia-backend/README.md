@@ -15,10 +15,29 @@ VozIA es un sistema que analiza llamadas telefónicas en tiempo real para detect
 
 ### 1. Crear y Activar Entorno Virtual
 
+
+
 ```bash
 # Windows
+
 python -m venv venv
 venv\Scripts\activate
+
+
+FOLDER RAIZ :      ChatBot_Call_Center\ vozia-backend >
+
+uvicorn  uvicorn app.api.api:app_api --app-dir src --reload --port 8000
+
+Levantar debug cli COPILOTO
+ python -m src.app.chat_copilot.main
+
+Levantar debug cli VOICE
+ python -m src.app.modules.voice.main
+
+
+
+
+activar cli copilot python -m src.app.modules.copilot.main
 
 # Linux/Mac
 python3 -m venv venv
@@ -28,7 +47,9 @@ source venv/bin/activate
 ### 2. Instalar Dependencias
 
 ```bash
-pip install -r requirements.txt
+
+pip install -r requirements_1.txt
+
 ```
 
 ### 3. Ejecutar el Servidor
