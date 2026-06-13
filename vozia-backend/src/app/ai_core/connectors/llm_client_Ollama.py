@@ -1,10 +1,14 @@
 # ollama_adapter.py
+from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 
-# Se crea UNA VEZ al cargar el módulo (Memoria optimizada)
+import os
+
+load_dotenv()
+
 _llm_instance = ChatOllama(
-    model="gpt-oss:120b-cloud", 
-    format="json", 
+    model=os.getenv("OLLAMA_MODEL"),
+    format="json",
     temperature=0
 )
 

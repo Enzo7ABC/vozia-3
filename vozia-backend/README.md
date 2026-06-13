@@ -26,7 +26,7 @@ venv\Scripts\activate
 
 FOLDER RAIZ :      ChatBot_Call_Center\ vozia-backend >
 
-uvicorn  uvicorn app.api.api:app_api --app-dir src --reload --port 8000
+uvicorn uvicorn app.api.api:app_api --app-dir src --reload --port 8000
 
 Levantar debug cli COPILOTO
  python -m src.app.chat_copilot.main
@@ -38,6 +38,29 @@ Levantar debug cli VOICE
 
 
 activar cli copilot python -m src.app.modules.copilot.main
+
+
+
+Crear archivo .env:
+
+cp .env.example .env
+
+Editar:
+
+OLLAMA_MODEL=llama3
+
+según el modelo que tenga cada desarrollador.
+
+debe solicitar la api..
+
+IMPORTANTEEE PARA LEVANTAR ESTA EN EL ENV V2.0.1 SE DEBE TENER LA API Y EL MODELO. PARA PODER AVANZAR EN EL DESARROLLO USAMOS UNA API ONPEN SOURCE. (LA DIFERENCIA ES LA POTENCIA DEL MODELO) 
+
+link como instalar y solicitar la api de ollama https://docs.ollama.com/cloud  
+link modelo open source ollama https://ollama.com/ 
+link docs 
+https://docs.ollama.com/cloud   
+
+tutorial para solicitrar la api 
 
 # Linux/Mac
 python3 -m venv venv
