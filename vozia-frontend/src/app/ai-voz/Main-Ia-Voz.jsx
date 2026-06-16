@@ -20,6 +20,7 @@ export default function Main_Ia_Voz() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState(null);
   const [fileName, setFileName] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
 
   const { setPageContext } = usePageContextBridge();
 
@@ -140,6 +141,8 @@ export default function Main_Ia_Voz() {
                     setTranscribeError={setTranscribeError}
                     fileName={fileName}
                     setFileName={setFileName}
+                    isRecording={isRecording}
+                    setIsRecording={setIsRecording}
                   />
 
                   <div className="flex flex-col gap-2">
