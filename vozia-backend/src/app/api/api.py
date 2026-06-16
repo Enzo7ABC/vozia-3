@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+import io
+import speech_recognition as sr
 
 from langchain_core.messages import HumanMessage
 
@@ -109,6 +111,44 @@ def copilot_chat(req: ChatRequest):
         "response": updated_state["copilot"]["guia_agente"]["que_hacer"],
         "call_state": updated_state
     }
+
+
+# ============================================================
+# 2.5. TRANSCRIBE AUDIO
+# ============================================================
+
+@app_api.post("/ia-voz/transcribe")
+async def transcribe(file: UploadFile = File(...)):
+    try:
+        # Leer el archivo WAV
+        audio_bytes = await file.read()
+        
+        # Cargar el audio con speech_recognition
+        recognizer = sr.Recognizer()
+        
+        # SpeechRecognition requiere un objeto tipo file. Usamos BytesIO.
+        audio_file_like = io.BytesIO(audio_bytes)
+        
+        with sr.AudioFile(audio_file_like) as source:
+            audio_data = recognizer.record(source)
+            
+        # Reconocer el audio usando la API de Google
+        try:
+            transcript = recognizer.recognize_google(audio_data, language="es-ES")
+        except sr.UnknownValueError:
+            raise HTTPException(status_code=400, detail="No se pudo entender el audio. ¿Es un audio vacío o con mucho ruido?")
+        except sr.RequestError as e:
+            raise HTTPException(status_code=520, detail=f"Error en el servicio de Google Speech Recognition: {e}")
+            
+        return {
+            "filename": file.filename,
+            "transcript": transcript,
+            "status": "success"
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al procesar el audio: {str(e)}")
 
 
 # ============================================================
