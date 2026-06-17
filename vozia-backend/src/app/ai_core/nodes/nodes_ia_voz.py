@@ -11,8 +11,8 @@ from langchain_core.messages import (
     BaseMessage,
 )
 
-from src.app.ai_core.connectors.llm_client_Ollama import get_ollama_llm
-from src.app.ai_core.prompts.prompt_ai_voz import build_system_prompt
+from app.ai_core.connectors.llm_client_Ollama import get_ollama_llm
+from app.ai_core.prompts.prompt_ai_voz import build_system_prompt
 
 # ============================================================
 # LLM

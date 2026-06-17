@@ -4,7 +4,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import (
     BaseMessage,
 )
-from src.app.ai_core.nodes.nodes_ia_voz import (extract_transcript_node, 
+from app.ai_core.nodes.nodes_ia_voz import (extract_transcript_node, 
                                             build_prompt_node,
                                             llm_analysis_node,
                                             parse_response_node,
