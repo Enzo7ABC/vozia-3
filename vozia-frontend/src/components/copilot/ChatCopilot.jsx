@@ -24,45 +24,58 @@ export default function ChatCopilot({
   const draggingRef = useRef(false);
   const offsetRef = useRef({ x: 0, y: 0 });
 
-const handleDragStart = (clientX, clientY) => {
+  const handleDragStart = (clientX, clientY) => {
     if (window.innerWidth >= 1024) return;
     draggingRef.current = true;
     const rect = bubbleRef.current.getBoundingClientRect();
     offsetRef.current = { x: clientX - rect.left, y: clientY - rect.top };
-    
-    // Quitamos la transición para que el movimiento sea instantáneo al tocar
     bubbleRef.current.style.transition = 'none';
   };
 
   const handleDragMove = (clientX, clientY) => {
     if (!draggingRef.current || !bubbleRef.current) return;
-    
-    // requestAnimationFrame hace que el movimiento sea suave y no se trabe
+
     requestAnimationFrame(() => {
-      const x = clientX - offsetRef.current.x;
-      const y = clientY - offsetRef.current.y;
-      
-      bubbleRef.current.style.left = `${x}px`;
-      bubbleRef.current.style.top = `${y}px`;
-      bubbleRef.current.style.right = "auto";
-      bubbleRef.current.style.bottom = "auto";
+      const el = bubbleRef.current;
+      let x = clientX - offsetRef.current.x;
+      let y = clientY - offsetRef.current.y;
+
+      const maxX = window.innerWidth - el.offsetWidth;
+      const maxY = window.innerHeight - el.offsetHeight;
+
+      const finalX = Math.max(0, Math.min(x, maxX));
+      const finalY = Math.max(0, Math.min(y, maxY));
+
+      el.style.left = `${finalX}px`;
+      el.style.top = `${finalY}px`;
+      el.style.position = 'fixed';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
     });
   };
 
   const handleDragEnd = () => {
     draggingRef.current = false;
-    // Restauramos la transición para que se vea bien al soltar
-    bubbleRef.current.style.transition = 'all 0.3s ease';
+    if (bubbleRef.current) {
+      bubbleRef.current.style.transition = 'all 0.3s ease';
+    }
   };
+
   const handleBotClick = () => {
-    if (window.innerWidth < 1024) setShowModelsMobile(!showModelsMobile);
-    else setCopilotOpen(true);
+    if (window.innerWidth < 1024) {
+      setShowModelsMobile(!showModelsMobile);
+    } else {
+      setCopilotOpen(true);
+    }
   };
 
   const handleModelChange = (modelKey) => {
     if (modelKey === selectedModel) return;
     setIsSwitching(true);
-    setTimeout(() => { setSelectedModel(modelKey); setIsSwitching(false); }, 600);
+    setTimeout(() => { 
+      setSelectedModel(modelKey); 
+      setIsSwitching(false); 
+    }, 600);
   };
 
   const modelsConfig = {
@@ -105,16 +118,23 @@ const handleDragStart = (clientX, clientY) => {
 
       <div
         className="fixed inset-y-0 right-0 lg:relative h-full bg-[#0B0F17]/95 backdrop-blur-3xl border-l border-white/10 shadow-2xl shadow-black/60 flex flex-col overflow-hidden transition-all duration-300 z-50 shrink-0 rounded-none"
-        style={{ width: copilotOpen ? (window.innerWidth < 1024 ? "100%" : `${copilotWidth}px`) : "0px", opacity: copilotOpen ? 1 : 0, borderLeftWidth: copilotOpen ? "1px" : "0px" }}
+        style={{ 
+          width: copilotOpen ? (window.innerWidth < 1024 ? "100%" : `${copilotWidth}px`) : "0px", 
+          opacity: copilotOpen ? 1 : 0, 
+          borderLeftWidth: copilotOpen ? "1px" : "0px" 
+        }}
       >
-        <div onMouseDown={(e) => {
+        <div 
+          onMouseDown={(e) => {
             e.preventDefault();
             const startX = e.clientX;
             const startWidth = copilotWidth;
             const move = (me) => { const nw = startWidth + (startX - me.clientX); if (nw >= 320 && nw <= 900) setCopilotWidth(nw); };
             const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
             window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
-          }} className="hidden lg:block absolute left-0 top-0 w-1 h-full cursor-col-resize z-50 bg-transparent hover:bg-blue-500/20" />
+          }} 
+          className="hidden lg:block absolute left-0 top-0 w-1 h-full cursor-col-resize z-50 bg-transparent hover:bg-blue-500/20" 
+        />
 
         <div className="p-4 border-b border-white/10 flex justify-between items-center rounded-none">
           <div>
