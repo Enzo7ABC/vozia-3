@@ -6,18 +6,20 @@ export default function Header() {
     <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/10 mb-8">
       
       {/* Título e Isologo */}
-      <div className="flex items-center gap-4">
-        <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/10">
-          <FiZap className="text-white" size={24} />
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-3">
+          <img
+            src="/logotype.svg"
+            alt="VozIA Logo"
+            className="h-8 md:h-9 w-auto object-contain brightness-110"
+          />
+          <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded">
+            Copilot
+          </span>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-            VozIA <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase ml-1.5 px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded">Copilot</span>
-          </h1>
-          <p className="text-xs md:text-sm text-slate-400 mt-0.5">
-            Análisis Cognitivo y Mapeo de Emociones en Tiempo Real
-          </p>
-        </div>
+        <p className="text-xs md:text-sm text-slate-400 mt-0.5">
+          Análisis Cognitivo y Mapeo de Emociones en Tiempo Real
+        </p>
       </div>
 
       {/* Badges de Estado del Sistema */}
