@@ -11,8 +11,10 @@ from langchain_core.messages import (
     BaseMessage,
 )
 
-from app.ai_core.connectors.llm_client_Ollama import get_ollama_llm
-from app.ai_core.prompts.prompt_ai_voz import build_system_prompt
+from src.app.ai_core.connectors.llm_client_Ollama import get_ollama_llm
+from src.app.ai_core.prompts.prompt_ai_voz import build_system_prompt
+
+from src.app.nlp.pysentiment import nlp_engine
 
 # ============================================================
 # LLM
@@ -33,6 +35,8 @@ class IaVozState(TypedDict):
     prompt: List[BaseMessage]
     llm_response: str
     parsed: Dict[str, Any]
+    nlp_response: Dict[str, Any]
+    llm_status: str
 
 
 # ============================================================
@@ -80,87 +84,53 @@ def build_prompt_node(state: IaVozState):
 # ============================================================
 # NODO 3: llm_analysis (LLM + NLP ready infra)
 # ============================================================
-
 def llm_analysis_node(state: IaVozState):
 
-    # ============================================================
-    # PLACEHOLDER NLP (infra lista)
-    # ============================================================
-    def nlp_invoke(transcript: str):
+    from src.app.nlp.pysentiment import nlp_engine
 
-        # Infra mock (todavía sin spaCy)
-        print("🟡 NLP ENGINE READY (mock)")
+    def fallback(transcript: str):
+        print("🟡 NLP FALLBACK ACTIVE (pysentimiento)")
+        result = nlp_engine(transcript)
 
         return {
-            "summary": transcript[:80],
-            "keywords": []
+            "summary": transcript[:120],
+            "sentiment": result["sentiment"],
+            "emotion": result["emotion"],
+            "text": result["text"]
         }
 
     try:
-        # ============================================================
-        # FORZAMOS ERROR (DEBUG SPACY) COMENTAR O DESCMENTAR SEGUN SEA EL CASO
-        # ============================================================
+        
+        # ===========================================
+        # Comentar para el camino feliz de LLM
+
         #raise Exception("FORZANDO FALLA LLM")
 
-        # ============================================================
-        # LLM OK PATH
-        # ============================================================
+        # ===========================================
+    
         response = llm.invoke(state["prompt"])
         raw = response.content.strip()
-
-        if raw.startswith("```json"):
-            raw = raw.replace("```json", "").replace("```", "").strip()
-
-        print("🟢 LLM OK")
 
         return {
             "llm_response": raw,
             "llm_status": "ok",
-            "nlp_response": None,
-            "nlp_status": "skipped"
+            "nlp_response": None
         }
-
 
     except Exception as e:
 
-        print("🔴 LLM FALLÓ → fallback activado:", str(e))
+        print("🔴 LLM FALLÓ → NLP ACTIVADO:", str(e))
 
-        transcript = state["transcript"]
-
-        nlp_result = nlp_invoke(transcript)
-
-        return {
-            # ============================================================
-            # LLM FALLBACK STATE
-            # ============================================================
-            "llm_response": None,
-            "llm_status": "fallback",
-
-            # ============================================================
-            # NLP ACTIVE (mock)
-            # ============================================================
-            "nlp_response": nlp_result,
-            "nlp_status": "ok"
-        }
-
-
-    except Exception as e:
-
-        print("🔴 LLM FALLÓ → activando fallback NLP:", str(e))
-
-        transcript = state["transcript"]
-
-        # =====================================================
-        # NLP HOOK (STUB)
-        # =====================================================
-        nlp_result = nlp_invoke(transcript)
-
+        transcript = state.get("transcript", "")
+        nlp_result = fallback(transcript)
+        print("que onda", nlp_result)
+        
         return {
             "llm_response": None,
             "llm_status": "fallback",
-            "nlp_status": nlp_result["status"],
             "nlp_response": nlp_result
         }
+
 
 # ============================================================
 # NODO 4: parse_response
@@ -168,15 +138,59 @@ def llm_analysis_node(state: IaVozState):
 
 def parse_response_node(state: IaVozState):
 
-    raw = state["llm_response"]
+    raw = state.get("llm_response")
+    nlp = state.get("nlp_response")
 
-    try:
-        parsed = json.loads(raw)
+    parsed = None
 
-    except Exception:
+    # ======================
+    # LLM PATH
+    # ======================
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            parsed = None
+
+    # ======================
+    # NLP PATH 
+    # ======================
+    if parsed is None and nlp is not None:
+
+        sentiment = nlp.get("sentiment", "NEU")
+        emotion = nlp.get("emotion", "others")
+        text = nlp.get("text", "")
+
+        parsed = {
+            "analisis": {
+                "emocion_principal": emotion,
+                "sentiment": sentiment,  
+                "interes": 0,
+                "angustia": 70 if sentiment == "NEG" else 0,
+                "urgencia": 80 if emotion == "anger" else 0,
+                "satisfaccion": 80 if sentiment == "POS" else 0
+            },
+            "resultado": {
+                "resumen": text[:120],
+                "palabras_clave": []
+            },
+            "accion": {
+                "recomendada": (
+                    "Retención cliente"
+                    if sentiment == "NEG"
+                    else "Atención estándar"
+                )
+            }
+        }
+
+    # ======================
+    # FALLBACK
+    # ======================
+    if parsed is None:
         parsed = {
             "analisis": {
                 "emocion_principal": "indeterminado",
+                "sentiment": "NEU",
                 "interes": 0,
                 "angustia": 0,
                 "urgencia": 0,
@@ -192,7 +206,9 @@ def parse_response_node(state: IaVozState):
         }
 
     return {
-        "parsed": parsed
+        "parsed": parsed,
+        "nlp_response": nlp,  
+        "llm_response": raw
     }
 
 
@@ -206,15 +222,12 @@ def update_state_node(state: IaVozState):
     parsed = state["parsed"]
     messages = state["messages"]
 
-    engine = state.get("engine", "unknown")
-    print(f"⚙️ Engine usado: {engine}")
-    
     call_state["estado"]["step"] = "resultados"
     call_state["estado"]["processing"] = False
 
-    call_state["analisis"] = parsed.get("analisis", call_state.get("analisis"))
-    call_state["resultado"] = parsed.get("resultado", call_state.get("resultado"))
-    call_state["accion"] = parsed.get("accion", call_state.get("accion"))
+    call_state["analisis"] = parsed.get("analisis", call_state["analisis"])
+    call_state["resultado"] = parsed.get("resultado", call_state["resultado"])
+    call_state["accion"] = parsed.get("accion", call_state["accion"])
 
     return {
         "call_state": call_state,
@@ -222,4 +235,3 @@ def update_state_node(state: IaVozState):
             AIMessage(content=json.dumps(call_state, ensure_ascii=False))
         ]
     }
-

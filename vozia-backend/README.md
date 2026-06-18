@@ -52,19 +52,19 @@ venv\Scripts\activate
 
 FOLDER RAIZ :      ChatBot_Call_Center\ vozia-backend >
 
-uvicorn uvicorn app.api.api:app_api --app-dir src --reload --port 8000
-
+uvicorn  uvicorn src.app.api.api:app_api --reload --port 8000
 Levantar debug cli COPILOTO
  python -m src.app.chat_copilot.main
 
+
+
+ levaNTAR NLP  > python -m src.app.nlp.pysentiment
 Levantar debug cli VOICE
  python -m src.app.modules.voice.main
 
 
 
-
 activar cli copilot python -m src.app.modules.copilot.main
-
 
 
 Crear archivo .env:

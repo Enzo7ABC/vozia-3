@@ -1,7 +1,6 @@
 from src.app.ai_core.graphs.graph_copilot import app_copilot
 from langchain_core.messages import HumanMessage
 
-
 def run():
 
     print("\n Módulo COPILOT CLI\n")
