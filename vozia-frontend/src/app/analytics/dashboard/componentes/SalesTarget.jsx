@@ -1,5 +1,5 @@
-export default function SalesTarget() {
-  const progress = 74;
+export default function SalesTarget({ data }) {
+  const progress = data?.progress ?? 74;
 
   return (
     <div

@@ -12,7 +12,8 @@ export default function AudioRecorder({
   fileName,
   setFileName,
   isRecording,
-  setIsRecording
+  setIsRecording,
+  sessionId
 }) {
   const [recordingTime, setRecordingTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -108,7 +109,7 @@ export default function AudioRecorder({
       setTranscribeProgress(85);
 
       // Enviar el archivo WAV al backend usando el servicio
-      const data = await apiService.transcribeAudio(wavBlob);
+      const data = await apiService.transcribeAudio(wavBlob, sessionId);
       setTranscribeProgress(100);
 
       if (name === "microfono_grabacion.webm") {

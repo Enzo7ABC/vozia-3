@@ -5,7 +5,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Mic,
-  Headphones
+  Headphones,
+  History
 } from "lucide-react";
 
 export default function Sidebar({ collapsed, setCollapsed }) {
@@ -108,6 +109,13 @@ export default function Sidebar({ collapsed, setCollapsed }) {
               to="/"
               icon={<Mic size={18} />}
               title="AI Voz"
+              collapsed={collapsed}
+            />
+
+            <NavItem
+              to="/historial"
+              icon={<History size={18} />}
+              title="Historial"
               collapsed={collapsed}
             />
           </div>

@@ -80,10 +80,13 @@ export const apiService = {
   },
 
   // Transcribe audio using Whisper
-  async transcribeAudio(wavBlob) {
+  async transcribeAudio(wavBlob, sessionId) {
     try {
       const formData = new FormData()
       formData.append("file", wavBlob, "audio_upload.wav")
+      if (sessionId) {
+        formData.append("session_id", sessionId)
+      }
       const response = await api.post('/ia-voz/transcribe', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

@@ -16,6 +16,7 @@ export default function Main_Ia_Voz() {
   const [error, setError] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [textInput, setTextInput] = useState("");
+  const [sessionId, setSessionId] = useState("");
 
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState(null);
@@ -25,8 +26,16 @@ export default function Main_Ia_Voz() {
   const { setPageContext } = usePageContextBridge();
 
   useEffect(() => {
+    if (!sessionId) {
+      const randomId =
+        "CALL_" + Math.random().toString(36).substring(2, 9).toUpperCase();
+      setSessionId(randomId);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
     const liveContext = {
-      session_id: "DEMO_001",
+      session_id: sessionId || "DEMO_001",
       page: "ia_voz",
       status: {
         isOnline,
@@ -71,7 +80,10 @@ export default function Main_Ia_Voz() {
     setCurrentStep(2);
 
     try {
-      const result = await apiService.getCallState(textInput, "DEMO_001");
+      const result = await apiService.getCallState(
+        textInput,
+        sessionId || "DEMO_001",
+      );
 
       console.log("🔥 BACKEND RESPONSE:", result);
 
@@ -92,6 +104,9 @@ export default function Main_Ia_Voz() {
     setAnalysisData(null);
     setError(null);
     setCurrentStep(1);
+    const randomId =
+      "CALL_" + Math.random().toString(36).substring(2, 9).toUpperCase();
+    setSessionId(randomId);
   };
 
   return (
@@ -125,7 +140,8 @@ export default function Main_Ia_Voz() {
                         Simulación de Audio de Llamada
                       </h2>
                       <p className="text-sm text-slate-400">
-                        Simula el audio de una llamada usando tus auriculares o sube un archivo grabado.
+                        Simula el audio de una llamada usando tus auriculares o
+                        sube un archivo grabado.
                       </p>
                     </div>
                   </div>
@@ -142,6 +158,7 @@ export default function Main_Ia_Voz() {
                     setFileName={setFileName}
                     isRecording={isRecording}
                     setIsRecording={setIsRecording}
+                    sessionId={sessionId}
                   />
 
                   <div className="flex flex-col gap-2">
