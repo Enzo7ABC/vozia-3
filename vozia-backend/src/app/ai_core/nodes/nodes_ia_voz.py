@@ -14,7 +14,6 @@ from langchain_core.messages import (
 from src.app.ai_core.connectors.llm_client_Ollama import get_ollama_llm
 from src.app.ai_core.prompts.prompt_ai_voz import build_system_prompt
 
-from src.app.nlp.pysentiment import nlp_engine
 
 # ============================================================
 # LLM

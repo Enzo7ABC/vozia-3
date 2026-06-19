@@ -1,15 +1,10 @@
+import os
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langchain_core.callbacks import BaseCallbackHandler
 
-import os
-
 load_dotenv()
 
-
-# ============================================================
-# MONITOR CALLBACK
-# ============================================================
 
 class LLMMonitorCallback(BaseCallbackHandler):
 
@@ -24,15 +19,25 @@ class LLMMonitorCallback(BaseCallbackHandler):
 
 
 # ============================================================
-# SINGLETON LLM
+# FLAG DE PRODUCCIÓN
 # ============================================================
 
-_llm_instance = ChatOllama(
-    model=os.getenv("OLLAMA_MODEL"),
-    format="json",
-    temperature=0,
-    callbacks=[LLMMonitorCallback()]   
-)
+USE_LLM = os.getenv("USE_LLM", "false") == "true"
+
+
+# ============================================================
+# SINGLETON (CONDICIONAL)
+# ============================================================
+
+_llm_instance = None
+
+if USE_LLM:
+    _llm_instance = ChatOllama(
+        model=os.getenv("OLLAMA_MODEL", "llama3"),
+        format="json",
+        temperature=0,
+        callbacks=[LLMMonitorCallback()]
+    )
 
 
 # ============================================================
@@ -41,6 +46,9 @@ _llm_instance = ChatOllama(
 
 def get_ollama_llm():
     """
-    Devuelve la instancia única del modelo.
+    Devuelve LLM si está activo, si no lanza error controlado.
     """
+    if not USE_LLM:
+        raise RuntimeError("LLM desactivado en producción (USE_LLM=false)")
+    
     return _llm_instance
