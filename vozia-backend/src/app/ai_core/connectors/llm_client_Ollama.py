@@ -6,6 +6,9 @@ from langchain_core.callbacks import BaseCallbackHandler
 load_dotenv()
 
 
+# ============================================================
+# CALLBACK (MONITOR)
+# ============================================================
 class LLMMonitorCallback(BaseCallbackHandler):
 
     def on_llm_start(self, serialized, prompts, **kwargs):
@@ -19,36 +22,32 @@ class LLMMonitorCallback(BaseCallbackHandler):
 
 
 # ============================================================
-# FLAG DE PRODUCCIÓN
+# FLAG
 # ============================================================
-
-USE_LLM = os.getenv("USE_LLM", "false") == "true"
+USE_LLM = os.getenv("USE_LLM", "false").lower() == "true"
 
 
 # ============================================================
-# SINGLETON (CONDICIONAL)
+# SINGLETON HOLDER (NO INIT EN IMPORT TIME)
 # ============================================================
-
 _llm_instance = None
 
-if USE_LLM:
-    _llm_instance = ChatOllama(
-        model=os.getenv("OLLAMA_MODEL", "llama3"),
-        format="json",
-        temperature=0,
-        callbacks=[LLMMonitorCallback()]
-    )
-
 
 # ============================================================
-# ACCESSOR
+# FACTORY / ACCESSOR
 # ============================================================
-
 def get_ollama_llm():
-    """
-    Devuelve LLM si está activo, si no lanza error controlado.
-    """
+    global _llm_instance
+
     if not USE_LLM:
-        raise RuntimeError("LLM desactivado en producción (USE_LLM=false)")
-    
+        return None
+
+    if _llm_instance is None:
+        _llm_instance = ChatOllama(
+            model=os.getenv("OLLAMA_MODEL", "llama3"),
+            format="json",
+            temperature=0,
+            callbacks=[LLMMonitorCallback()]
+        )
+
     return _llm_instance

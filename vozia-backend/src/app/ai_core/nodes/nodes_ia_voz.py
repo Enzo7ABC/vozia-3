@@ -89,6 +89,7 @@ def llm_analysis_node(state: IaVozState):
 
     def fallback(transcript: str):
         print("🟡 NLP FALLBACK ACTIVE (pysentimiento)")
+
         result = nlp_engine(transcript)
 
         return {
@@ -99,14 +100,17 @@ def llm_analysis_node(state: IaVozState):
         }
 
     try:
-        
-        # ===========================================
-        # Comentar para el camino feliz de LLM
+        llm = get_ollama_llm()
 
-        #raise Exception("FORZANDO FALLA LLM")
+        # =====================================================
+        # CASO 1: NO HAY LLM (Render / producción)
+        # =====================================================
+        if llm is None:
+            raise Exception("LLM desactivado → fallback NLP")
 
-        # ===========================================
-    
+        # =====================================================
+        # CASO 2: LLM ACTIVO
+        # =====================================================
         response = llm.invoke(state["prompt"])
         raw = response.content.strip()
 
@@ -122,14 +126,12 @@ def llm_analysis_node(state: IaVozState):
 
         transcript = state.get("transcript", "")
         nlp_result = fallback(transcript)
-        print("que onda", nlp_result)
-        
+
         return {
             "llm_response": None,
             "llm_status": "fallback",
             "nlp_response": nlp_result
         }
-
 
 # ============================================================
 # NODO 4: parse_response
