@@ -24,7 +24,7 @@ export async function POST_API_CHAT_COPILOT(req) {
     return Response.json({
       success: true,
       data: {
-        reply: data.response, // Extrae la propiedad 'response' de FastAPI
+        reply: data.response,
       },
     });
 
