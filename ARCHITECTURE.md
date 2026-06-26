@@ -1,483 +1,128 @@
-# 🏗️ Arquitectura VozIA - Frontend + Backend
+# 🏗️ Arquitectura VozIA — Frontend + Backend (Agente LangGraph)
+
+Este documento detalla la arquitectura actual y el flujo de datos del sistema **VozIA** con orquestación inteligente de agentes.
+
+---
 
 ## 📊 Diagrama de Flujo Completo
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      USUARIO FINAL                                  │
-│                    (Sin autenticación)                              │
+│                      USUARIO FINAL / AGENTE                         │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                              ▼
-        ┌────────────────────────────────────────────┐
-        │      VOZIA FRONTEND (React)                │
-        │      Puerto: 3000                          │
-        │                                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 1. AudioRecorder Component           │ │
-        │  │    - Grabar audio del micrófono      │ │
-        │  │    - Editar transcripción            │ │
-        │  │    - Cargar ejemplos de demostración │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        │              ▼                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 2. ConversationFlow Component        │ │
-        │  │    - Mostrar progreso (paso 1/4)     │ │
-        │  │    - Visual feedback                 │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        │              ▼                            │
-        │   [Botón: Analizar Conversación]         │
-        │              │                            │
-        └──────────────┼────────────────────────────┘
-                       │
-                       │ HTTP POST
-                       │ /api/analizar-llamada
-                       │
-                       ▼
-        ┌────────────────────────────────────────────┐
-        │      VOZIA BACKEND (FastAPI)               │
-        │      Puerto: 8000                          │
-        │                                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 1. Transcription Service             │ │
-        │  │    - Convierte audio → texto         │ │
-        │  │    - Simulado para demo              │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        │              ▼                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 2. Emotion Service                   │ │
-        │  │    - Analiza emociones               │ │
-        │  │    - Detecta temas/palabras clave    │ │
-        │  │    - Calcula confianza               │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        │              ▼                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 3. NLP Service                       │ │
-        │  │    - Análisis de lenguaje natural    │ │
-        │  │    - Extrae temas principales        │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        │              ▼                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 4. Endpoints Main                    │ │
-        │  │    - Calcula métricas finales        │ │
-        │  │    - Genera recomendaciones          │ │
-        │  │    - Compone respuesta               │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        └──────────────┼────────────────────────────┘
-                       │
-                       │ JSON Response
-                       │ {
-                       │   emotion,
-                       │   confidence,
-                       │   stress_level,
-                       │   interest_level,
-                       │   urgency_level,
-                       │   satisfaction,
-                       │   recommendation,
-                       │   topics,
-                       │   summary
-                       │ }
-                       │
-                       ▼
-        ┌────────────────────────────────────────────┐
-        │      VOZIA FRONTEND (React)                │
-        │                                            │
-        │  ┌──────────────────────────────────────┐ │
-        │  │ 3. AnalysisResults Component         │ │
-        │  │    - Muestra emoción primaria        │ │
-        │  │    - Cards de métricas               │ │
-        │  │    - Transcripción original          │ │
-        │  │    - Temas detectados                │ │
-        │  │    - Recomendación del agente        │ │
-        │  │    - Resumen del análisis            │ │
-        │  │    - Botones: Nueva Conversación     │ │
-        │  │               Imprimir               │ │
-        │  └──────────────────────────────────────┘ │
-        │              │                            │
-        │              ▼                            │
-        │   [Pantalla de Resultados Mostrada]      │
-        │                                            │
-        └────────────────────────────────────────────┘
+         ┌────────────────────────────────────────────┐
+         │      VOZIA FRONTEND (React + Vite)         │
+         │      Puerto: 3000                          │
+         │                                            │
+         │  ┌──────────────────────────────────────┐  │
+         │  │ 1. AudioRecorder (Panel Izquierdo)   │  │
+         │  │    - Graba audio por micrófono       │  │
+         │  │    - Carga ejemplos precargados      │  │
+         │  │    - Permite editar transcripción    │  │
+         │  └──────────────────────────────────────┘  │
+         │                     │                      │
+         │                     ▼                      │
+         │  ┌──────────────────────────────────────┐  │
+         │  │ 2. ChatCopilot (Panel Lateral)       │  │
+         │  │    - Chatea con el Copiloto de IA    │  │
+         │  │    - Recibe guías adaptativas        │  │
+         │  └──────────────────────────────────────┘  │
+         └─────────────┬──────────────────┬───────────┘
+                       │                  │
+            POST /ia-voz/call-state       │ POST /copilot/chat
+                       │                  │
+                       ▼                  ▼
+         ┌────────────────────────────────────────────┐
+         │      VOZIA BACKEND (FastAPI)               │
+         │      Puerto: 8000                          │
+         │                                            │
+         │  ┌──────────────────────────────────────┐  │
+         │  │ 1. Grafo de Análisis (LangGraph)     │  │
+         │  │    - extract_transcript              │  │
+         │  │    - build_prompt (Directiva suma 100)│ │
+         │  │    - llm_analysis (Ollama/Groq Client)│ │
+         │  │    - parse_response                  │  │
+         │  │    - update_state (Métricas finales) │  │
+         │  └──────────────────────────────────────┘  │
+         │                     │                      │
+         │                     ▼                      │
+         │  ┌──────────────────────────────────────┐  │
+         │  │ 2. Grafo del Copiloto (LangGraph)     │  │
+         │  │    - Router: CONTENCION, RETENCION,  │  │
+         │  │      COMERCIAL u OPERATIVO           │  │
+         │  │    - Inyección de Directivas         │  │
+         │  └──────────────────────────────────────┘  │
+         │                     │                      │
+         │                     ▼                      │
+         │  ┌──────────────────────────────────────┐  │
+         │  │ 3. Motor Fallback (NLP Local)        │  │
+         │  │    - PyTorch + pysentimiento en CPU  │  │
+         │  └──────────────────────────────────────┘  │
+         └─────────────┬──────────────────┬───────────┘
+                       │                  │
+                       ▼                  ▼
+         ┌────────────────────────────────────────────┐
+         │              PERSISTENCIA                  │
+         │                                            │
+         │  ┌──────────────────────────────────────┐  │
+         │  │ - MongoDB Atlas (En la nube)         │  │
+         │  │ - calls_db.json (Fallback local JSON)│  │
+         │  └──────────────────────────────────────┘  │
+         └─────────────────────┬──────────────────────┘
+                               │
+                               ▼
+         ┌────────────────────────────────────────────┐
+         │       DASHBOARD DE RESULTADOS (React)      │
+         │                                            │
+         │  - Indicadores en tiempo real (Timeline)   │
+         │  - Emojis dinámicos (Confianza %)          │
+         │  - Reporte de Recomendaciones e Historial  │
+         └────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 🔄 Flujo de Datos Detallado
 
-### 1️⃣ Grabación de Audio (AudioRecorder)
+### 1️⃣ Análisis de la Conversación
+1. El usuario realiza la simulación en la interfaz. El frontend envía la transcripción al endpoint `/ia-voz/call-state` en [api.py](file:///c:/programando/vozia3/vozia-backend/src/app/api/api.py).
+2. El backend invoca el grafo principal de **LangGraph** ([graph_ia_voz.py](file:///c:/programando/vozia3/vozia-backend/src/app/ai_core/graphs/graph_ia_voz.py)):
+   * **`extract_transcript`:** Lee el audio/texto ingresado.
+   * **`build_prompt`:** Prepara las instrucciones en base a [prompt_ai_voz.py](file:///c:/programando/vozia3/vozia-backend/src/app/ai_core/prompts/prompt_ai_voz.py) priorizando los últimos 6 segundos. Si es un modelo Ollama, inyecta la directiva de Suma 100 de las 4 métricas emocionales.
+   * **`llm_analysis`:** Invoca al modelo en la nube (Groq) o local (Ollama). Si el LLM no está disponible, **activa automáticamente el fallback local** mediante PyTorch y `pysentimiento` para obtener el estado emocional directamente en el procesador.
+   * **`parse_response`:** Sanitiza y convierte la salida en JSON.
+   * **`update_state`:** Actualiza el estado mutable de la llamada.
+3. Se actualiza la línea de tiempo (`timeline`) con el registro segundo a segundo.
+4. Si la llamada es finalizada (`is_final`), se guarda en la base de datos (**MongoDB Atlas** o local **calls_db.json**).
 
-```javascript
-Usuario hace clic en "Iniciar Grabación"
-    ↓
-Solicita acceso al micrófono
-    ↓
-Abre stream de audio
-    ↓
-Comienza a grabar
-    ↓
-Usuario detiene la grabación
-    ↓
-Convierte audio a blob
-    ↓
-[En esta demo se usa transcripción de ejemplo]
-    ↓
-Muestra texto en textarea (editable)
-```
-
-### 2️⃣ Análisis de Conversación (App + API)
-
-```javascript
-Usuario hace clic en "Analizar Conversación"
-    ↓
-Frontend valida que hay texto
-    ↓
-Envía POST a /analizar-llamada
-    {
-      "transcript": "Hola, tengo un problema...",
-      "call_id": "DEMO_1234567890",
-      "agent_id": "DEMO_AGENT"
-    }
-    ↓
-Backend recibe la solicitud
-    ↓
-TranscriptionService: Valida transcripción
-    ↓
-EmotionService: Analiza emociones
-    - Busca palabras clave
-    - Calcula confianza
-    - Detecta emociones secundarias
-    ↓
-NLPService: Extrae temas
-    - Identifica palabras principales
-    - Categoriza contenido
-    ↓
-Main: Calcula métricas finales
-    - InterestLevel (ALTO/MEDIO/BAJO)
-    - StressLevel (NORMAL/MODERADO/CRITICO)
-    - Urgency (BAJA/MEDIA/INMEDIATA)
-    - Satisfaction (0-1)
-    - Recommendation (texto sugerido)
-    ↓
-Retorna JSON con análisis completo
-```
-
-### 3️⃣ Visualización de Resultados (AnalysisResults)
-
-```javascript
-Frontend recibe respuesta del backend
-    ↓
-Valida que hay datos
-    ↓
-Renderiza AnalysisResults component
-    ↓
-Muestra:
-  - Emoción primaria con emoji
-  - Confianza en porcentaje
-  - Cards de métricas (Estrés, Interés, Urgencia, Satisfacción)
-  - Transcripción original
-  - Temas detectados como badges
-  - Recomendación para el agente
-  - Resumen del análisis
-    ↓
-Usuario puede:
-  - Ver completo
-  - Imprimir (window.print())
-  - Iniciar nueva conversación
-```
+### 2️⃣ Asistencia al Operador (Copiloto)
+1. El agente escribe en la barra del chat del copiloto.
+2. El frontend envía la pregunta a `/copilot/chat`.
+3. El backend ejecuta el grafo del copiloto ([graph_copilot.py](file:///c:/programando/vozia3/vozia-backend/src/app/ai_core/graphs/graph_copilot.py)) que calcula las métricas actuales del cliente:
+   * Si la palabra clave "baja" está en el texto o la urgencia es $\geq 80$: Rutera a **RETENCION**.
+   * Si la angustia es $\geq 70$ y la satisfacción es $\leq 30$: Rutera a **CONTENCION**.
+   * Si el interés es $\geq 70$: Rutera a **COMERCIAL**.
+   * De lo contrario: Rutera a **OPERATIVO**.
+4. Cada ruta inyecta directivas específicas al prompt del LLM sobre qué responder, qué decir y qué evitar.
+5. El LLM responde adoptando la personalidad del asistente elegido y las directivas del negocio.
 
 ---
 
-## 📦 Componentes y Sus Responsabilidades
+## 📦 Estructura de Módulos (Backend)
 
-### Frontend (React)
-
-```
-App.jsx (Orquestador Principal)
-├── Header.jsx (Display)
-│   └── Muestra logo y descripción
-├── ConversationFlow.jsx (State)
-│   └── Indica paso actual (1-4)
-├── AudioRecorder.jsx (Input)
-│   ├── Grabadora de audio
-│   ├── Textarea editable
-│   ├── Ejemplos de demostración
-│   └── Botón de análisis
-├── AnalysisResults.jsx (Output)
-│   ├── Emoción principal
-│   ├── Métricas visuales
-│   ├── Transcripción
-│   ├── Temas
-│   ├── Recomendación
-│   └── Botones de acción
-└── services/api.js (Comunicación)
-    ├── analyzeText()
-    ├── analyzeCall()
-    ├── uploadAudio()
-    └── healthCheck()
-
-Componentes Reutilizables:
-├── EmotionBadge.jsx (Badge coloreado)
-└── MetricCard.jsx (Card de métrica)
-```
-
-### Backend (FastAPI)
-
-```
-main.py (API Principal)
-├── Endpoints:
-│   ├── GET /health (Health check)
-│   ├── POST /analizar-texto
-│   ├── POST /analizar-llamada
-│   └── POST /subir-audio
-├── Middleware CORS
-└── Documentación automática (/docs)
-
-services/
-├── transcription.py
-│   ├── TranscriptionService
-│   └── transcribe(audio_path) → str
-├── emotion.py
-│   ├── EmotionAnalysisService
-│   └── analyze(text) → dict
-└── nlp.py
-    ├── NLPService
-    └── extract_topics(text) → list
-
-models.py (Tipos de datos)
-├── CallAnalysisRequest
-├── CallAnalysisResponse
-├── EmotionType (Enum)
-├── StressLevel (Enum)
-└── ...
-
-config.py (Configuración)
-├── CORS_ORIGINS
-├── API_TITLE
-└── ...
-```
-
----
-
-## 🔌 Endpoints del API
-
-### 1. Health Check
-```http
-GET /health
-```
-**Respuesta:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-05-27T10:30:00"
-}
-```
-
-### 2. Analizar Texto
-```http
-POST /analizar-texto
-Content-Type: application/json
-
-{
-  "text": "Hola, tengo un problema...",
-  "call_id": "DEMO_123"
-}
-```
-
-**Respuesta:**
-```json
-{
-  "emotion_analysis": {
-    "primary_emotion": "ENOJO",
-    "confidence": 0.85,
-    "secondary_emotions": ["FRUSTRATION"]
-  },
-  "topics": ["pago", "frustración"],
-  "call_id": "DEMO_123"
-}
-```
-
-### 3. Análisis Completo de Llamada
-```http
-POST /analizar-llamada
-Content-Type: application/json
-
-{
-  "transcript": "Hola, tengo un problema urgente con mi pago...",
-  "call_id": "DEMO_123",
-  "agent_id": "AGENT_001"
-}
-```
-
-**Respuesta:**
-```json
-{
-  "emotion_analysis": {
-    "primary_emotion": "ENOJO",
-    "confidence": 0.85,
-    "secondary_emotions": ["ANSIEDAD"]
-  },
-  "stress_level": "MODERADO",
-  "interest_level": "ALTO",
-  "urgency_level": "INMEDIATA",
-  "satisfaction": 0.20,
-  "recommendation": "Tranquilizar al cliente...",
-  "topics": ["pago", "urgencia"],
-  "transcript": "Hola, tengo un problema...",
-  "summary": "Cliente fuertemente frustrado..."
-}
-```
-
----
-
-## 📡 Comunicación entre Servicios
-
-```
-Frontend (localhost:3000)
-        │
-        │ HTTP/CORS
-        │
-        ▼
-Backend (localhost:8000)
-        │
-        ├─→ TranscriptionService (audio → text)
-        │
-        ├─→ EmotionService (text → emotions)
-        │        │
-        │        └─→ Busca palabras clave
-        │        └─→ Calcula confianza
-        │        └─→ Identifica emociones
-        │
-        ├─→ NLPService (text → topics)
-        │        │
-        │        └─→ Extrae términos principales
-        │        └─→ Categoriza contenido
-        │
-        └─→ Main orchestration
-                 │
-                 └─→ Calcula métricas finales
-                 └─→ Genera recomendación
-                 └─→ Arma respuesta JSON
-```
+* **`src/app/api/api.py`:** Define los endpoints REST, el control de la base de datos híbrida (Mongo / JSON) y la API de carga de audios.
+* **`src/app/ai_core/graphs/`:** Contiene los flujos lógicos estructurados mediante LangGraph (`graph_ia_voz.py` y `graph_copilot.py`).
+* **`src/app/ai_core/nodes/`:** Define el comportamiento e instrucciones ejecutadas en cada paso del flujo (`nodes_ia_voz.py`).
+* **`src/app/ai_core/connectors/`:** Administra las conexiones locales con Ollama y la rotación multi-llave en la nube con Groq.
+* **`src/app/nlp/`:** Motor secundario offline para análisis local.
 
 ---
 
 ## 🎨 Estados de la Interfaz
 
-### Estado 1: Recording (Grabación)
-```
-┌─────────────────────────┐
-│   Iniciar Grabación     │  ← Activo
-│   Ver Ejemplo           │
-│   [Área de texto vacía] │
-│   [Botones deshabilitados]
-└─────────────────────────┘
-```
-
-### Estado 2: Analyzing (Analizando)
-```
-┌─────────────────────────┐
-│   🔄 Analizando...      │
-│   Espera por respuesta  │
-│   Loading animation     │
-└─────────────────────────┘
-```
-
-### Estado 3: Results (Resultados)
-```
-┌─────────────────────────┐
-│   [Emoción principal]   │
-│   [Métricas]            │
-│   [Transcripción]       │
-│   [Temas]               │
-│   [Recomendación]       │
-│   [Resumen]             │
-│   [Botones de acción]   │
-└─────────────────────────┘
-```
-
----
-
-## 🔐 Seguridad (Considera para Producción)
-
-```
-Fase Actual (Demo):
-├── ✓ Sin autenticación
-├── ✓ Sin base de datos
-├── ✓ Sin persistencia
-└── ✓ Solo demostración
-
-Mejoras Futuras:
-├── Autenticación JWT
-├── Rate limiting
-├── Validación de entrada
-├── Encriptación de datos sensibles
-├── Base de datos para historial
-└── Logs de auditoría
-```
-
----
-
-## 📊 Flujo de Datos en JSON
-
-```javascript
-// 1. Frontend envía:
-{
-  transcript: "Tengo un problema con mi pago",
-  call_id: "DEMO_1234567890",
-  agent_id: "DEMO_AGENT"
-}
-
-// 2. Backend procesa y retorna:
-{
-  emotion_analysis: {
-    primary_emotion: "CONFUSION",
-    confidence: 0.75,
-    secondary_emotions: ["ENOJO"]
-  },
-  stress_level: "MODERADO",
-  interest_level: "ALTO",
-  urgency_level: "MEDIA",
-  satisfaction: 0.40,
-  recommendation: "Explicar claramente el proceso...",
-  topics: ["pago", "proceso", "confusión"],
-  transcript: "Tengo un problema con mi pago",
-  summary: "Cliente confundido sobre proceso de pago...",
-  call_id: "DEMO_1234567890"
-}
-
-// 3. Frontend renderiza cada campo en AnalysisResults
-```
-
----
-
-## 🚀 Escala de Operación
-
-### Fase Actual (Demo)
-```
-1 usuario ← Frontend →  1 servidor backend
-                       Sin BD
-                       Sin persistencia
-                       Análisis en memoria
-```
-
-### Fase Siguiente (Producción)
-```
-Múltiples usuarios ← Load Balancer → Múltiples backends
-                                    Con BD (PostgreSQL)
-                                    Con caché (Redis)
-                                    Modelos ML reales
-                                    Análisis asincronos
-```
-
----
-
-Este documento describe la arquitectura completa de VozIA.
-Para preguntas técnicas, revisa el código y los READMEs de cada carpeta.
-
-**Última actualización**: 2024-05-27
+1. **Estado de Grabación:** Captura de voz, visualización del contador de tiempo y editor de texto.
+2. **Estado de Análisis:** Pantalla de carga animada (loading state) mientras se ejecuta el grafo de IA.
+3. **Estado de Resultados:** Muestra las métricas calculadas, curvas de evolución emocional (Timeline) y recomendaciones.
+4. **Estado de Copiloto:** Panel lateral que asiste al agente telefónico en vivo.
