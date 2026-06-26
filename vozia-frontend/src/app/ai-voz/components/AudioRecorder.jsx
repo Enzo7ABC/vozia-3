@@ -13,7 +13,8 @@ export default function AudioRecorder({
   setFileName,
   isRecording,
   setIsRecording,
-  sessionId
+  sessionId,
+  handleAnalyze
 }) {
   const [recordingTime, setRecordingTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -114,9 +115,12 @@ export default function AudioRecorder({
 
       if (name === "microfono_grabacion.webm") {
         setTextInput(data.transcript);
+        if (handleAnalyze) handleAnalyze(data.transcript);
       } else {
-        // Simular efecto de escritura
-        simulateTypingEffect(data.transcript);
+        // Simular efecto de escritura y luego analizar
+        simulateTypingEffect(data.transcript, () => {
+          if (handleAnalyze) handleAnalyze(data.transcript);
+        });
       }
 
     } catch (err) {
@@ -232,7 +236,7 @@ export default function AudioRecorder({
     }
   };
 
-  const simulateTypingEffect = (text) => {
+  const simulateTypingEffect = (text, onComplete) => {
     let currentText = "";
     let i = 0;
     setTextInput("");
@@ -245,6 +249,7 @@ export default function AudioRecorder({
         i++;
       } else {
         clearInterval(interval);
+        if (onComplete) onComplete();
       }
     }, 70);
   };

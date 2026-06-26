@@ -65,9 +65,24 @@ def build_prompt_node(state: IaVozState):
 
     call_state = state["call_state"]
     transcript = state["transcript"]
+    active_model = call_state.get("active_model", "openai")
+
+    system_prompt = build_system_prompt()
+
+    # Si es un modelo local de Ollama, inyectamos la directiva solicitada para forzar la suma de 100 en las 4 emociones
+    if active_model and ("qwen" in active_model.lower() or "mistral" in active_model.lower() or "gemma" in active_model.lower()):
+        system_prompt += """
+INFORMACIÓN ADICIONAL PARA CLASIFICACIÓN DE EMOCIONES:
+Analiza el siguiente texto y clasifica las emociones en porcentajes.
+Las emociones a evaluar son: INTERÉS, URGENCIA, SATISFACCIÓN y ANGUSTIA.
+La SATISFACCIÓN empieza en 100 (completamente satisfecho) y solo baja si detectas queja, frustración o insatisfacción explícita.
+Devuelve SOLO un JSON con los porcentajes, asegurando que la suma sea 100.
+Alinea estos porcentajes con los campos "interes", "urgencia", "satisfaccion" y "angustia" dentro de la clave "analisis" del JSON principal.
+Asegúrate de que la suma de estos 4 valores ("interes" + "urgencia" + "satisfaccion" + "angustia") sea exactamente 100.
+"""
 
     prompt = [
-        SystemMessage(content=build_system_prompt()),
+        SystemMessage(content=system_prompt),
         SystemMessage(
             content="CALL_STATE:\n"
             + json.dumps(call_state, ensure_ascii=False, indent=2)
@@ -85,22 +100,29 @@ def build_prompt_node(state: IaVozState):
 # ============================================================
 def llm_analysis_node(state: IaVozState):
 
-    from src.app.nlp.pysentiment import nlp_engine
-
     def fallback(transcript: str):
         print("🟡 NLP FALLBACK ACTIVE (pysentimiento)")
-
-        result = nlp_engine(transcript)
-
-        return {
-            "summary": transcript[:120],
-            "sentiment": result["sentiment"],
-            "emotion": result["emotion"],
-            "text": result["text"]
-        }
+        try:
+            from src.app.nlp.pysentiment import nlp_engine
+            result = nlp_engine(transcript)
+            return {
+                "summary": transcript[:120],
+                "sentiment": result["sentiment"],
+                "emotion": result["emotion"],
+                "text": result["text"]
+            }
+        except ImportError as e:
+            print(f"🔴 No se pudo cargar NLP (falta torch/pysentimiento): {e}")
+            return {
+                "summary": transcript[:120],
+                "sentiment": "NEU",
+                "emotion": "others",
+                "text": "Error: NLP fallback no disponible."
+            }
 
     try:
-        llm = get_ollama_llm()
+        active_model = state["call_state"].get("active_model", "openai")
+        llm = get_ollama_llm(model_name=active_model, json_mode=True)
 
         # =====================================================
         # CASO 1: NO HAY LLM (Render / producción)
@@ -149,8 +171,16 @@ def parse_response_node(state: IaVozState):
     # ======================
     if raw:
         try:
-            parsed = json.loads(raw)
-        except Exception:
+            import re
+            cleaned_raw = re.sub(r'```(?:json)?|```', '', raw).strip()
+            # If there's extra text before or after the JSON braces, try to extract just the JSON
+            start_idx = cleaned_raw.find('{')
+            end_idx = cleaned_raw.rfind('}')
+            if start_idx != -1 and end_idx != -1:
+                cleaned_raw = cleaned_raw[start_idx:end_idx+1]
+            parsed = json.loads(cleaned_raw)
+        except Exception as e:
+            print(f"Error parsing JSON: {e}. Raw was: {raw}")
             parsed = None
 
     # ======================
@@ -169,7 +199,7 @@ def parse_response_node(state: IaVozState):
                 "interes": 0,
                 "angustia": 70 if sentiment == "NEG" else 0,
                 "urgencia": 80 if emotion == "anger" else 0,
-                "satisfaccion": 80 if sentiment == "POS" else 0
+                "satisfaccion": 100 if sentiment == "POS" else (30 if sentiment == "NEG" else 80)
             },
             "resultado": {
                 "resumen": text[:120],
@@ -195,7 +225,7 @@ def parse_response_node(state: IaVozState):
                 "interes": 0,
                 "angustia": 0,
                 "urgencia": 0,
-                "satisfaccion": 0
+                "satisfaccion": 100
             },
             "resultado": {
                 "resumen": "No fue posible procesar el análisis.",

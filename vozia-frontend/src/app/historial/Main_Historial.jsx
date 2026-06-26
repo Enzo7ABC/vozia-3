@@ -87,12 +87,66 @@ export default function Main_Historial() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/ia-voz/history`);
-      if (!response.ok) {
-        throw new Error("Error al obtener el historial del servidor.");
+      // 1. Intentar cargar del backend
+      let backendData = [];
+      try {
+        const response = await fetch(`${API_URL}/ia-voz/history`);
+        if (response.ok) {
+          backendData = await response.json();
+        }
+      } catch (backendErr) {
+        console.warn("Backend no disponible, usando solo localStorage:", backendErr);
       }
-      const data = await response.json();
-      setHistory(data);
+
+      // 2. Cargar del localStorage (guardado por la página principal)
+      let localData = [];
+      try {
+        const stored = localStorage.getItem("vozia_historial");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Convertir formato de localStorage al formato que usa esta página
+          localData = parsed.map((item) => ({
+            session_id: item.id || `local_${item.fecha}`,
+            timestamp: item.fecha,
+            transcript: item.textoCompleto || "",
+            has_audio: false,
+            call_state: {
+              analisis: {
+                emocion_principal: item.analisis?.emocion_principal || "neutral",
+                satisfaccion: item.metricasPromedio?.satisfaccion ?? item.satisfaccion ?? 0,
+                angustia: item.metricasPromedio?.angustia ?? 0,
+                urgencia: item.metricasPromedio?.urgencia ?? 0,
+                interes: item.metricasPromedio?.interes ?? 0,
+              },
+              resultado: {
+                resumen: item.resumen || "",
+                palabras_clave: [],
+              },
+              accion: { recomendada: "" },
+              timeline: item.timeline || [],
+            },
+            _from_local: true,
+          }));
+        }
+      } catch (localErr) {
+        console.warn("Error leyendo localStorage:", localErr);
+      }
+
+      // 3. Fusionar: el backend tiene prioridad; agregar del local si no existe en backend
+      const backendIds = new Set(backendData.map((d) => d.session_id));
+      const merged = [
+        ...backendData,
+        ...localData.filter((d) => !backendIds.has(d.session_id)),
+      ];
+
+      // 4. Ordenar por fecha descendente
+      merged.sort((a, b) => {
+        const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return tb - ta;
+      });
+
+      setHistory(merged);
     } catch (err) {
       console.error("Fetch history failed:", err);
       setError(err.message || "Error al conectar con el backend.");
@@ -848,7 +902,7 @@ export default function Main_Historial() {
                                       </button>
                                     </div>
                                     <p className="text-xs md:text-sm text-slate-300 leading-relaxed whitespace-pre-wrap italic">
-                                      "{call.transcript}"
+                                      &ldquo;{call.transcript}&rdquo;
                                     </p>
                                   </div>
                                 </div>

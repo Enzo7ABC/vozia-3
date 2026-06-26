@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { FiCalendar, FiClock, FiActivity, FiSmile, FiAlertCircle, FiChevronDown, FiChevronUp, FiTrash2 } from "react-icons/fi";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function HistorialLlamadas({ llamadas = [], alEliminar }) {
   const [llamadaExpandida, setLlamadaExpandida] = useState(null);
@@ -29,6 +30,15 @@ export default function HistorialLlamadas({ llamadas = [], alEliminar }) {
     return "text-rose-400 bg-rose-500/10 border-rose-500/20";
   };
 
+  // Datos ordenados cronológicamente (de antigua a nueva) para el gráfico de evolución
+  const chartData = [...llamadas].reverse().map((llama, index) => ({
+    name: `Llamada ${index + 1}`,
+    Satisfaccion: llama.metricasPromedio?.satisfaccion || 0,
+    Angustia: llama.metricasPromedio?.angustia || 0,
+    Urgencia: llama.metricasPromedio?.urgencia || 0,
+    Interes: llama.metricasPromedio?.interes || 0,
+  }));
+
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 mt-6">
       <div className="flex items-center justify-between mb-6">
@@ -52,7 +62,8 @@ export default function HistorialLlamadas({ llamadas = [], alEliminar }) {
           <p className="text-xs mt-1 text-slate-600">Los resultados que proceses aparecerán listados aquí abajo.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <>
+          <div className="space-y-3">
           {llamadas.map((llamada) => {
             const estaExpandido = llamadaExpandida === llamada.id;
             return (
@@ -129,12 +140,42 @@ export default function HistorialLlamadas({ llamadas = [], alEliminar }) {
                         {llamada.textoCompleto}
                       </div>
                     </div>
+
+                    {/* Gráfico Individual por Segundos */}
+                    {llamada.timeline && llamada.timeline.length > 0 && (
+                      <div className="h-56 w-full bg-slate-900/60 rounded-lg p-3 border border-white/5 mt-4">
+                        <h4 className="text-[10px] font-semibold text-slate-400 mb-2 uppercase tracking-wider">Evolución Emocional de la Llamada</h4>
+                        <ResponsiveContainer width="100%" height="90%">
+                          <LineChart data={llamada.timeline.map(t => ({
+                            name: `${t.segundo}s`,
+                            Satisfaccion: t.satisfaccion,
+                            Angustia: t.angustia,
+                            Urgencia: t.urgencia,
+                            Interes: t.interes
+                          }))} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                            <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickMargin={5} />
+                            <YAxis stroke="#64748b" fontSize={9} domain={[0, 100]} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '6px', fontSize: '11px' }}
+                              itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '5px' }} />
+                            <Line type="monotone" dataKey="Satisfaccion" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+                            <Line type="monotone" dataKey="Angustia" stroke="#f43f5e" strokeWidth={1.5} dot={{ r: 1.5 }} />
+                            <Line type="monotone" dataKey="Urgencia" stroke="#f59e0b" strokeWidth={1.5} dot={{ r: 1.5 }} />
+                            <Line type="monotone" dataKey="Interes" stroke="#0ea5e9" strokeWidth={1.5} dot={{ r: 1.5 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+        </>
       )}
     </div>
   );

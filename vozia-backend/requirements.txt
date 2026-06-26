@@ -1,13 +1,37 @@
-fastapi==0.137.2
-langchain_core==1.4.8
-langchain_ollama==1.1.0
-langgraph==1.2.6
-pydantic==2.13.4
-pymongo==4.17.0
-pysentimiento==0.7.3
-python-dotenv==1.2.2
-Requests==2.34.2
-speechrecognition==3.16.1
-uvicorn==0.49.0
+# ============================================================
+# VozIA Backend - Dependencias Reales
+# ============================================================
+# Instalar con: pip install -r requirements.txt
+# NOTA: Instalar PyTorch por separado (ver INSTALL.md)
+# ============================================================
 
-python-multipart
+# --- Web Framework ---
+fastapi==0.115.12
+uvicorn==0.34.3
+python-multipart==0.0.20
+
+# --- IA / LangChain / LangGraph ---
+langchain-core==0.3.63
+langchain-ollama==0.3.3
+langchain-groq==0.3.2
+langgraph==0.4.8
+
+# --- Base de Datos ---
+pymongo==4.13.0
+dnspython==2.8.0
+
+# --- Audio / Transcripción ---
+SpeechRecognition==3.14.3
+
+# --- Utilidades ---
+python-dotenv==1.1.0
+pydantic==2.11.7
+requests==2.32.3
+
+# ============================================================
+# INSTALAR PYTORCH POR SEPARADO (solo CPU, compatible Windows):
+#
+#   pip install torch==2.2.0+cpu --index-url https://download.pytorch.org/whl/cpu
+#
+# NO usar: pip install torch  (instala versión CUDA incompatible)
+# ============================================================

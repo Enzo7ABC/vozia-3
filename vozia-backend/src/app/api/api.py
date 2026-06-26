@@ -23,23 +23,97 @@ app_api = FastAPI()
 db = None
 calls_collection = None
 
-if mongo_uri:
+class LocalCallsCollection:
+    def __init__(self):
+        self.data = []
+        self.db_file = os.path.join(os.path.dirname(__file__), "calls_db.json")
+        self.load()
+
+    def load(self):
+        if os.path.exists(self.db_file):
+            try:
+                import json
+                with open(self.db_file, "r", encoding="utf-8") as f:
+                    self.data = json.load(f)
+                    for doc in self.data:
+                        if isinstance(doc.get("timestamp"), str):
+                            try:
+                                doc["timestamp"] = datetime.fromisoformat(doc["timestamp"])
+                            except:
+                                pass
+            except:
+                self.data = []
+
+    def save(self):
+        try:
+            import json
+            dump_data = []
+            for doc in self.data:
+                safe_doc = doc.copy()
+                if "timestamp" in safe_doc and isinstance(safe_doc["timestamp"], datetime):
+                    safe_doc["timestamp"] = safe_doc["timestamp"].isoformat()
+                if "audio_data" in safe_doc:
+                    del safe_doc["audio_data"]
+                dump_data.append(safe_doc)
+            
+            with open(self.db_file, "w", encoding="utf-8") as f:
+                json.dump(dump_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print("Error saving local db:", e)
+
+    def find_one(self, query):
+        sid = query.get("session_id")
+        for doc in self.data:
+            if doc.get("session_id") == sid:
+                return doc
+        return None
+
+    def update_one(self, query, update_doc, upsert=False):
+        sid = query.get("session_id")
+        doc = self.find_one(query)
+        if doc:
+            set_data = update_doc.get("$set", {})
+            doc.update(set_data)
+        elif upsert:
+            new_doc = update_doc.get("$set", {}).copy()
+            new_doc["session_id"] = sid
+            self.data.append(new_doc)
+        self.save()
+
+    def find(self, query=None):
+        return self
+
+    def sort(self, key, direction):
+        if key == "timestamp":
+            self.data.sort(key=lambda x: (x.get("timestamp") or datetime.min), reverse=(direction == -1))
+        return self
+
+    def limit(self, max_items):
+        return self.data[:max_items]
+
+    def __iter__(self):
+        return iter(self.data)
+    
+    def __len__(self):
+        return len(self.data)
+
+if mongo_uri and "<db_password>" not in mongo_uri:
     try:
-        if "<db_password>" not in mongo_uri:
-  
-            mongo_client = MongoClient(
-                mongo_uri,
-                tls=True,
-                tlsAllowInvalidCertificates=True,
-                tlsAllowInvalidHostnames=True
-            )
-            db = mongo_client[mongo_db_name]
-            calls_collection = db["calls"]
-        else:
-            print("MONGO_URI contiene el placeholder '<db_password>'.")
+        mongo_client = MongoClient(
+            mongo_uri,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            tlsAllowInvalidHostnames=True
+        )
+        db = mongo_client[mongo_db_name]
+        calls_collection = db["calls"]
+        print("✅ Conectado a MongoDB Atlas")
     except Exception as e:
-        print(f"Error al conectar con MongoDB Atlas: {e}")
-        
+        print(f"⚠️ Error al conectar con MongoDB Atlas: {e}. Usando base de datos local JSON.")
+        calls_collection = LocalCallsCollection()
+else:
+    print("ℹ️ MONGO_URI no configurado o contiene placeholder. Usando base de datos local JSON.")
+    calls_collection = LocalCallsCollection()
 
 
 MEMORY_LIVE_CONTEXT = {}
@@ -62,6 +136,16 @@ class ChatRequest(BaseModel):
 
 
 # ============================================================
+# 0. API DE MODELOS DISPONIBLES
+# ============================================================
+
+@app_api.get("/ia-voz/models")
+def get_models():
+    from src.app.ai_core.connectors.llm_client_Ollama import AVAILABLE_MODELS
+    return AVAILABLE_MODELS
+
+
+# ============================================================
 # 1. API 1 & AGENTE 1 - ANALISIS
 # ============================================================
 
@@ -74,10 +158,21 @@ def call_state(req: ChatRequest):
         }
     }
 
+    existing_state = MEMORY_LIVE_CONTEXT.get(req.session_id)
+    if existing_state:
+        timeline = existing_state.get("timeline", [])
+        start_time_str = existing_state.get("start_time", datetime.utcnow().isoformat())
+    else:
+        timeline = []
+        start_time_str = datetime.utcnow().isoformat()
+
     state = {
         "messages": [HumanMessage(content=req.message)],
         "call_state": {
             "page": "ia_voz",
+            "active_model": req.active_model,
+            "start_time": start_time_str,
+            "timeline": timeline,
             "audio_original": {
                 "type": "text",
                 "content": req.message
@@ -92,7 +187,7 @@ def call_state(req: ChatRequest):
                 "interes": 0,
                 "angustia": 0,
                 "urgencia": 0,
-                "satisfaccion": 0
+                "satisfaccion": 100
             },
             "resultado": {
                 "resumen": "",
@@ -104,12 +199,40 @@ def call_state(req: ChatRequest):
         }
     }
 
-    result = app_agent_call_state.invoke(state, config=config)
+    try:
+        print(f"Iniciando invocación de LangGraph para modelo: {req.active_model}")
+        result = app_agent_call_state.invoke(state, config=config)
+        print("Invocación exitosa.")
+    except Exception as e:
+        import traceback
+        print("\n" + "="*50)
+        print("🔥 ERROR CRÍTICO AL CONECTAR CON IA O EJECUTAR GRAFO 🔥")
+        print(f"Modelo activo: {req.active_model}")
+        traceback.print_exc()
+        print("="*50 + "\n")
+        raise HTTPException(status_code=500, detail=f"Error interno IA: {str(e)}")
 
+    # Update timeline
+    start_time = datetime.fromisoformat(start_time_str)
+    elapsed = (datetime.utcnow() - start_time).total_seconds()
+    analisis = result["call_state"]["analisis"]
+    
+    # Solo agregar al timeline si han pasado al menos 2 segundos o es el primer punto
+    if not timeline or elapsed - timeline[-1].get("segundo", 0) >= 2:
+        timeline.append({
+            "segundo": round(elapsed),
+            "satisfaccion": analisis.get("satisfaccion", 0),
+            "angustia": analisis.get("angustia", 0),
+            "urgencia": analisis.get("urgencia", 0),
+            "interes": analisis.get("interes", 0)
+        })
+    result["call_state"]["timeline"] = timeline
 
     MEMORY_LIVE_CONTEXT[req.session_id] = result["call_state"]
 
-    if calls_collection is not None:
+    is_final = req.page_context.get("is_final", True) if req.page_context else True
+
+    if is_final and calls_collection is not None:
         try:
             audio_bytes = AUDIO_CACHE.pop(req.session_id, None)
             
@@ -129,7 +252,7 @@ def call_state(req: ChatRequest):
                 upsert=True
             )
         except Exception as e:
-            print(f"Error al guardar estado de la llamada en MongoDB: {e}")
+            print(f"Error al guardar estado de la llamada en MongoDB/Local: {e}")
 
     return {
         "session_id": req.session_id,
@@ -153,15 +276,12 @@ def copilot_chat(req: ChatRequest):
         page = req.page_context.get("page", "ia_voz")
 
     # Mapear el nombre del modelo
-    model_name_map = {
-        "openai": "OpenAI GPT-4",
-        "gemini": "Gemini 1.5 Pro",
-        "anthropic": "Anthropic Claude 3.5"
-    }
-    model_label = model_name_map.get(req.active_model.lower(), "Groq LLaMA")
+    from src.app.ai_core.connectors.llm_client_Ollama import AVAILABLE_MODELS
+    model_info = next((m for m in AVAILABLE_MODELS if m["id"].lower() == req.active_model.lower()), None)
+    model_label = model_info["name"] if model_info else req.active_model
 
     # Obtener el LLM en modo texto plano (json_mode=False) para responder la pregunta del usuario
-    llm = get_ollama_llm(json_mode=False)
+    llm = get_ollama_llm(model_name=req.active_model, json_mode=False)
 
     call_state = MEMORY_LIVE_CONTEXT.get(req.session_id)
     if call_state is None and calls_collection is not None and req.session_id:
@@ -311,9 +431,17 @@ def get_history():
         cursor = calls_collection.find().sort("timestamp", -1).limit(50)
         history = []
         for doc in cursor:
+            ts = doc.get("timestamp")
+            if isinstance(ts, datetime):
+                ts_str = ts.isoformat()
+            elif isinstance(ts, str):
+                ts_str = ts
+            else:
+                ts_str = None
+
             history.append({
                 "session_id": doc.get("session_id"),
-                "timestamp": doc.get("timestamp").isoformat() if doc.get("timestamp") else None,
+                "timestamp": ts_str,
                 "transcript": doc.get("transcript"),
                 "call_state": doc.get("call_state"),
                 "has_audio": "audio_data" in doc and doc["audio_data"] is not None

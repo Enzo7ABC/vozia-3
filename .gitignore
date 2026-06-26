@@ -1,0 +1,28 @@
+# VozIA — Root .gitignore
+# Protección global de credenciales
+
+# ── Variables de entorno (NUNCA subir al repo) ──────────────────────────────
+**/.env
+**/.env.local
+**/.env.*.local
+vozia-backend/.env
+
+# ── Entornos virtuales de Python ─────────────────────────────────────────────
+vozia-backend/venv/
+vozia-backend/.venv/
+vozia-backend/__pycache__/
+vozia-backend/**/__pycache__/
+vozia-backend/**/*.pyc
+
+# ── Base de datos local (generada en tiempo de ejecución) ───────────────────
+vozia-backend/src/app/api/calls_db.json
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+vozia-frontend/node_modules/
+vozia-frontend/dist/
+
+# ── IDE y Sistema ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

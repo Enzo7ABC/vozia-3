@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
 from langchain_core.callbacks import BaseCallbackHandler
 
 load_dotenv()
@@ -89,23 +90,100 @@ class MultiKeyChatGroq:
 
 
 # ============================================================
-# SINGLETON HOLDERS (NO INIT EN IMPORT TIME)
+# REGISTRO DE MODELOS DISPONIBLES (DURADERO Y FÁCIL DE EXTENDER)
 # ============================================================
-_llm_json_instance = None
-_llm_text_instance = None
+AVAILABLE_MODELS = [
+    {
+        "id": "openai",
+        "name": "OpenAI GPT-4 (Groq Cloud)",
+        "provider": "groq",
+        "latency": "1.2s",
+        "tokens": "128k",
+        "color": "text-emerald-400",
+        "description": "Modelo insignia de OpenAI procesado a través de la nube de Groq."
+    },
+    {
+        "id": "gemini",
+        "name": "Gemini 1.5 Pro (Groq Cloud)",
+        "provider": "groq",
+        "latency": "0.8s",
+        "tokens": "2m",
+        "color": "text-blue-400",
+        "description": "Modelo de Google optimizado para alta velocidad y contexto masivo."
+    },
+    {
+        "id": "anthropic",
+        "name": "Anthropic Claude 3.5 (Groq Cloud)",
+        "provider": "groq",
+        "latency": "1.5s",
+        "tokens": "200k",
+        "color": "text-orange-400",
+        "description": "Modelo premium de Anthropic con alta precisión y control analítico."
+    },
+    {
+        "id": "mistral:7b",
+        "name": "Mistral 7B (Local Ollama)",
+        "provider": "ollama",
+        "latency": "0.6s (Local)",
+        "tokens": "32k",
+        "color": "text-red-400",
+        "description": "Modelo francés open-source ultra rápido y preciso para tareas lógicas."
+    },
+    {
+        "id": "gemma:2b",
+        "name": "Gemma 2B (Local Ultra-Rápido)",
+        "provider": "ollama",
+        "latency": "0.1s (Local)",
+        "tokens": "8k",
+        "color": "text-yellow-400",
+        "description": "Modelo de Google súper ligero ideal para correr en CPU en tiempo real sin GPU."
+    }
+]
+
+# ============================================================
+# CONTENEDORES DE INSTANCIAS (CACHE SINGLETON)
+# ============================================================
+_llm_instances = {}
 
 
 # ============================================================
-# FACTORY / ACCESSOR
+# FACTORY / ACCESSOR DINÁMICO
 # ============================================================
-def get_ollama_llm(json_mode=True):
-    global _llm_json_instance, _llm_text_instance
+def get_ollama_llm(model_name=None, json_mode=True):
+    global _llm_instances
 
     if not USE_LLM:
         return None
 
-    # Obtenemos las llaves una sola vez si es necesario
-    if (json_mode and _llm_json_instance is None) or (not json_mode and _llm_text_instance is None):
+    # Si no se provee modelo, usar "openai" (Groq Cloud) por defecto
+    if not model_name:
+        model_name = "openai"
+
+    model_key = (model_name.lower(), json_mode)
+
+    # Devolver instancia existente si ya se ha creado
+    if model_key in _llm_instances:
+        return _llm_instances[model_key]
+
+    # Determinar el proveedor y la configuración correspondiente
+    model_info = next((m for m in AVAILABLE_MODELS if m["id"].lower() == model_name.lower()), None)
+    provider = model_info["provider"] if model_info else ("ollama" if ":" in model_name or "qwen" in model_name or "mistral" in model_name else "groq")
+
+    if provider == "ollama":
+        # Instanciar modelo local usando ChatOllama
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        print(f"[Ollama Client] Instanciando modelo local '{model_name}' en {ollama_url} (JSON={json_mode})")
+        
+        # ChatOllama soporta json mediante format="json"
+        instance = ChatOllama(
+            model=model_name,
+            base_url=ollama_url,
+            temperature=0,
+            format="json" if json_mode else None,
+            callbacks=[LLMMonitorCallback()]
+        )
+    else:
+        # Instanciar modelo Cloud (Groq) usando la envoltura multi-llave existente
         api_keys = []
         
         # 1. Buscar en GROQ_API_KEYS (lista separada por comas)
@@ -116,7 +194,7 @@ def get_ollama_llm(json_mode=True):
                 if k and k not in api_keys:
                     api_keys.append(k)
 
-        # 2. Buscar en GROQ_API_KEY (puede ser una sola o separada por comas)
+        # 2. Buscar en GROQ_API_KEY
         single_key_env = os.getenv("GROQ_API_KEY", "")
         if single_key_env:
             for k in single_key_env.split(","):
@@ -124,7 +202,7 @@ def get_ollama_llm(json_mode=True):
                 if k and k not in api_keys:
                     api_keys.append(k)
 
-        # 3. Buscar claves numeradas (GROQ_API_KEY_1, GROQ_API_KEY_2, etc.)
+        # 3. Buscar claves numeradas
         for key, value in os.environ.items():
             if key.startswith("GROQ_API_KEY_"):
                 for part in value.split(","):
@@ -135,17 +213,22 @@ def get_ollama_llm(json_mode=True):
         if not api_keys:
             print("[Advertencia] No se encontraron API keys de Groq en las variables de entorno.")
 
+        # Mapear el ID al modelo real de Groq si es necesario
+        groq_model = "llama-3.3-70b-versatile"
+        if model_name.lower() == "gemini":
+            groq_model = "llama-3.3-70b-versatile"
+        elif model_name.lower() == "anthropic":
+            groq_model = "llama-3.3-70b-versatile"
+
+        print(f"[Groq Client] Instanciando modelo Cloud '{groq_model}' para alias '{model_name}' (JSON={json_mode})")
         instance = MultiKeyChatGroq(
             api_keys=api_keys,
-            model="llama-3.3-70b-versatile",
+            model=groq_model,
             temperature=0,
             response_format={"type": "json_object"} if json_mode else None,
             callbacks=[LLMMonitorCallback()]
         )
 
-        if json_mode:
-            _llm_json_instance = instance
-        else:
-            _llm_text_instance = instance
-
-    return _llm_json_instance if json_mode else _llm_text_instance
+    # Guardar en cache y devolver
+    _llm_instances[model_key] = instance
+    return instance

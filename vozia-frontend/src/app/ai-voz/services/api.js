@@ -101,17 +101,59 @@ export const apiService = {
   },
 
   // Get cognitive call state analysis
-  async getCallState(message, sessionId = "DEMO_001") {
+  async getCallState(message, sessionId = "DEMO_001", activeModel = "openai", isFinal = true) {
     try {
       const response = await api.post('/ia-voz/call-state', {
         message,
         session_id: sessionId,
+        active_model: activeModel,
+        page_context: { is_final: isFinal }
       })
       return response.data
     } catch (error) {
       console.error('Call state analysis failed:', error)
       const errMsg = error.response?.data?.detail || error.response?.data?.message || error.message || 'Error al conectar con el backend'
       throw new Error(errMsg)
+    }
+  },
+
+  // Get available AI models
+  async getModels() {
+    try {
+      const response = await api.get('/ia-voz/models')
+      return response.data
+    } catch (error) {
+      console.error('Failed to fetch AI models:', error)
+      // Fallback a los modelos predeterminados si falla
+      return [
+        {
+          id: "openai",
+          name: "OpenAI GPT-4 (Groq Cloud)",
+          provider: "groq",
+          latency: "1.2s",
+          tokens: "128k",
+          color: "text-emerald-400",
+          description: "Modelo insignia de OpenAI procesado a través de la nube de Groq."
+        },
+        {
+          id: "gemini",
+          name: "Gemini 1.5 Pro (Groq Cloud)",
+          provider: "groq",
+          latency: "0.8s",
+          tokens: "2m",
+          color: "text-blue-400",
+          description: "Modelo de Google optimizado para alta velocidad y contexto masivo."
+        },
+        {
+          id: "anthropic",
+          name: "Anthropic Claude 3.5 (Groq Cloud)",
+          provider: "groq",
+          latency: "1.5s",
+          tokens: "200k",
+          color: "text-orange-400",
+          description: "Modelo premium de Anthropic con alta precisión y control analítico."
+        }
+      ]
     }
   },
 }
